@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="./coffee.css">
+    <title>BrewHub Coffee Order</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-image: url('https://source.unsplash.com/1600x900/?coffee'); /* Coffee Background */
+            background-size: cover;
+            color: white;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: auto;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+        }
+        h1 {
+            font-size: 20px;
+        }
+        .membership button {
+            padding: 10px;
+            margin: 5px;
+            border: none;
+            cursor: pointer;
+        }
+        .gold { background: gold; }
+        .silver { background: silver; }
+        .regular { background: gray; color: white; }
+        select, input {
+            width: 100%;
+            padding: 5px;
+            margin: 5px 0;
+        }
+        .calculate-btn {
+            background: orange;
+            color: white;
+            padding: 10px;
+            border: none;
+            cursor: pointer;
+            width: 100%;
+        }
+        .summary-box {
+            background: #222;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Coffee Hub - For lovely one</h1>
+
+        <div class="membership">
+            <button class="gold" onclick="selectMembership('gold')">Gold Member</button>
+            <button class="silver" onclick="selectMembership('silver')">Silver Member</button>
+            <button class="regular" onclick="selectMembership('regular')">Regular Member</button>
+        </div>
+
+        <div class="order-box">
+            <label>Select Coffee Type:</label>
+            <select id="coffeeType"></select>
+            <option value="Honey"></option>
+            <option value="Ice Cream"></option>
+            <option value="Chocolate"></option>
+            <option value="Syrup"></option>
+
+            <label>Select Coffee Size:</label>
+            <select id="coffeeSize"></select>
+
+            <label>Quantity:</label>
+            <input type="number" id="quantity" value="1" min="1">
+
+            <label>Add-ons:</label>
+            <div id="addons"></div>
+
+            <label>Promo Code:</label>
+            <input type="text" id="promoCode" placeholder="Enter Promo Code">
+
+            <button class="calculate-btn" onclick="calculateTotal()">Calculate Total</button>
+        </div>
+
+        <div class="summary-box">
+            <h2>Bill Summary</h2>
+            <p>Subtotal: $<span id="subtotal">0.00</span></p>
+            <p>Membership Discount: $<span id="discount">0.00</span></p>
+            <p>GST (<span id="gst-rate">0</span>%): $<span id="gst">0.00</span></p>
+            <p>Service Charge: $<span id="service-charge">0.00</span></p>
+            <h3>Final Total: $<span id="totalPrice">0.00</span></h3>
+        </div>
+    </div>
+
+    <script>
+        let pricingData = {};
+        let membershipDiscount = 0; // Default discount
+
+        // Fetch pricing data from API
+        async function fetchPricingData() {
+            try {
+                const response = await fetch('https://api.npoint.io/d48587410594df0f5932');
+                pricingData = await response.json();
+                populateOptions();
+            } catch (error) {
+                console.error('Error fetching pricing data:', error);
+            }
+        }
+
+        // Populate coffee types, sizes, and add-ons
+        function populateOptions() {
+            const coffeeTypeSelect = document.getElementById('coffeeType');
+            const coffeeSizeSelect = document.getElementById('coffeeSize');
+            const addonsDiv = document.getElementById('addons');
+
+            // Populate coffee types
+            pricingData.coffeeTypes.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type.name;
+                option.textContent = type.name;
+                coffeeTypeSelect.appendChild(option);
+            });
+
+            // Populate coffee sizes
+            pricingData.coffeeSizes.forEach(size => {
+                const option = document.createElement('option');
+                option.value = size.size;
+                option.textContent = `${size.size} - $${size.price}`;
+                option.dataset.price = size.price;
+                coffeeSizeSelect.appendChild(option);
+            });
+
+            // Populate add-ons
+            pricingData.addOns.forEach(addon => {
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = addon.name;
+                checkbox.dataset.price = addon.price;
+                const label = document.createElement('label');
+                label.htmlFor = addon.name;
+                label.textContent = `${addon.name} ($${addon.price})`;
+                addonsDiv.appendChild(checkbox);
+                addonsDiv.appendChild(document.createElement('br'));
+            });
+        }
+
+        // Handle membership selection
+        function selectMembership(type) {
+            membershipDiscount = pricingData.membershipDiscounts[type] || 0;
+            alert(`${type.charAt(0).toUpperCase() + type.slice(1)} Membership Selected! Discount: ${membershipDiscount}%`);
+        }
+
+        // Calculate total price
+        function calculateTotal() {
+            const coffeeSizeSelect = document.getElementById('coffeeSize');
+            const selectedSize = coffeeSizeSelect.options[coffeeSizeSelect.selectedIndex];
+            const sizePrice = parseFloat(selectedSize.dataset.price);
+
+            const quantity = parseInt(document.getElementById('quantity').value);
+            const selectedAddOns = document.querySelectorAll('#addons input:checked');
+            const promoCode = document.getElementById('promoCode').value;
+
+            let addOnsTotal = 0;
+            selectedAddOns.forEach(addon => {
+                addOnsTotal += parseFloat(addon.dataset.price);
+            });
+
+            let subtotal = (sizePrice + addOnsTotal) * quantity;
+            let discountAmount = (subtotal * membershipDiscount) / 100;
+            let discountedTotal = subtotal - discountAmount;
+
+            const gstRate = pricingData.taxRates.gst || 0;
+            const gstAmount = (discountedTotal * gstRate) / 100;
+
+            const serviceCharge = pricingData.serviceCharge || 0;
+
+            let finalTotal = discountedTotal + gstAmount + serviceCharge;
+
+            // Apply promo code discount (e.g., Extra 10% off if "COFFEE10")
+            if (promoCode === 'COFFEE10') {
+                finalTotal *= 0.9;
+            }
+
+            // Update the summary
+            document.getElementById('subtotal').textContent = subtotal.toFixed(2);
+            document.getElementById('discount').textContent = discountAmount.toFixed(2);
+            document.getElementById('gst-rate').textContent = gstRate;
+            document.getElementById('gst').textContent = gstAmount.toFixed(2);
+            document.getElementById('service-charge').textContent = serviceCharge.toFixed(2);
+            document.getElementById('totalPrice').textContent = finalTotal.toFixed(2);
+        }
+
+        // Initialize the app
+        fetchPricingData();
+    </script>
+</body>
+</html>
